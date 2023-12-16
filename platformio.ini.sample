@@ -1,0 +1,60 @@
+; PlatformIO Project Configuration File
+;
+;   Build options: build flags, source filter
+;   Upload options: custom upload port, speed and extra flags
+;   Library options: dependencies, extra library storages
+;   Advanced options: extra scripting
+;
+; Please visit documentation for the other options and examples
+; https://docs.platformio.org/page/projectconf.html
+
+[env:m5stack-atom]
+platform = espressif32
+board = m5stack-atom
+framework = arduino
+lib_deps = 
+	m5stack/M5Atom@^0.1.0
+	strange-v/MHZ19@^1.1.2
+	fastled/FastLED@^3.5.0
+	bblanchon/ArduinoJson@5
+	sparkfun/SparkFun SCD4x Arduino Library@^1.1.2
+build_flags =
+    -D HAS_DISPLAY=0
+monitor_speed = 115200
+;upload_protocol = espota
+;upload_port = 10.0.0.1  
+
+[env:atoms3]
+platform = espressif32
+board = m5stack-atoms3
+framework = arduino
+lib_deps = 
+  m5stack/M5AtomS3@^0.0.3
+	strange-v/MHZ19@^1.1.2
+	fastled/FastLED@^3.5.0
+	bblanchon/ArduinoJson@5
+	sparkfun/SparkFun SCD4x Arduino Library@^1.1.2
+build_flags =
+    -D HAS_DISPLAY=1
+monitor_speed = 115200
+;upload_protocol = espota
+;upload_port = 10.0.0.1  
+
+[env:atoms3lite]
+platform = espressif32
+board = m5stack-atoms3
+framework = arduino
+lib_deps = 
+  m5stack/M5AtomS3@^0.0.3
+	strange-v/MHZ19@^1.1.2
+	fastled/FastLED@^3.5.0
+	bblanchon/ArduinoJson@5
+	sparkfun/SparkFun SCD4x Arduino Library@^1.1.2
+build_flags =
+    -O2
+    -D HAS_DISPLAY=0
+monitor_speed = 115200
+;upload_protocol = espota
+;upload_port = 10.0.0.1  
+
+
