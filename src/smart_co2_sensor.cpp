@@ -10,7 +10,7 @@ Supported sensors / relays
 * SCD40 CO2 sensor Unit / MHZ19 
 * M5 HUB Switch.D
 * TPLink Smart Plug (HS105)
-* DC fan (5V) for humidity
+* DC fan (5V) for humidity control
 * micro magnetic switch for door open sensor 
 */
 
@@ -81,6 +81,10 @@ Supported sensors / relays
 #include "SHT3X.h"
 #endif
 
+#ifdef USE_SGP30
+#include <Adafruit_SGP30.h>
+#endif
+
 #include "debugmacros.h"
 #include "DataLog.h"
 
@@ -120,6 +124,7 @@ uint8_t use_fan = 0;
 uint8_t use_relay = 0;
 uint8_t use_extrelay = 0;
 uint8_t use_tplug = 0;
+uint8_t use_tvoc = 0;
 
 String url_extrelay = "";
 
@@ -134,6 +139,7 @@ String temp_id = "temp";
 String humid_id = "humid";
 String press_id = "pressure";
 String door_id = "door";
+String tvoc_id = "tvoc";
 
 uint8_t door = DOOR_OPEN, prev_door = DOOR_OPEN;
 uint32_t door_count;
@@ -157,6 +163,10 @@ SHT3X sht30;
 QMP6988 qmp6988;
 #endif
 
+#ifdef USE_SGP30
+Adafruit_SGP30 sgp;
+#endif
+
 #ifdef USE_MHZ19
 HardwareSerial mySerial(1);
 MHZ19 mhz19(&mySerial);
@@ -175,7 +185,7 @@ Fan fan(FAN_PIN,70);
 
 String error_message;
 
-DataLog *templog, *humidlog, *co2log, *pressurelog;
+DataLog *templog, *humidlog, *co2log, *pressurelog, *tvoclog;
 
 
 /*
@@ -328,6 +338,22 @@ void getCO2() {
       DPRINT(F("Error, code: "));
       DPRINTLN(response);
     }
+#endif
+  }
+}
+
+void getTVOC() {
+  float tvoc;
+  if (use_tvoc) {
+#ifdef USE_SGP30
+    if (! sgp.IAQmeasure()) {
+      Serial.println("Measurement failed");
+      return;
+    }
+    tvoc = sgp.TVOC;
+    tvoclog->add(tvoc);
+    DPRINTF("tvoc: raw %d   log %f \n",sgp.TVOC,tvoclog->latest());
+//    DPRINTLN(tvoclog->latest());
 #endif
   }
 }
@@ -852,6 +878,9 @@ void handleStatus() {
     if (use_pressure) {
       json["pressure"] = pressurelog->latest();
     }
+    if (use_tvoc) {
+      json["tvoc"] = tvoclog->latest();
+    }
     if (use_co2) {
       json["co2"] = co2log->latest();
       if (!use_humidity) {
@@ -934,6 +963,10 @@ void handleFunction() {
       use_co2 = argv == "true" ? 1 : 0;
       prefs.putUInt("use_co2", use_co2);
       changed++;
+    } else if (argname == "use_tvoc") {
+      use_tvoc = argv == "true" ? 1 : 0;
+      prefs.putUInt("use_tvoc", use_tvoc);
+      changed++;
     } else if (argname == "use_doorsensor") {
       use_doorsensor = argv == "true" ? 1 : 0;
       prefs.putUInt("use_doorsensor", use_doorsensor);
@@ -961,6 +994,7 @@ void handleFunction() {
   json["use_humidity"] = use_humidity > 0 ? "true" : "false";
   json["use_pressure"] = use_pressure > 0 ? "true" : "false";
   json["use_co2"] = use_co2 > 0 ? "true" : "false";
+  json["use_tvoc"] = use_tvoc > 0 ? "true" : "false";
   json["use_doorsensor"] = use_doorsensor > 0 ? "true" : "false";
   json["use_fan"] = use_fan > 0 ? "true" : "false";
   json["use_relay"] = use_relay > 0 ? "true" : "false";
@@ -1032,9 +1066,12 @@ void handleConfig() {
     } else if (argname == "co2_id") {
       co2_id = argv;
       prefs.putString("co2label", co2_id);
+    } else if (argname == "tvoc_id") {
+      tvoc_id = argv;
+      prefs.putString("tvoclabel", tvoc_id);
     } else if (argname == "door_id") {
       door_id = argv;
-      prefs.putString("co2label", co2_id);
+      prefs.putString("doorlabel", door_id);
     } else if (argname == "url_endpoint") {
       url_endpoint = argv;
       prefs.putString("url_endpoint", url_endpoint);
@@ -1115,6 +1152,9 @@ void handleConfig() {
   }
   if (use_co2) {
     json["co2_id"] = co2_id;
+  }
+  if (use_tvoc) {
+    json["tvoc_id"] = tvoc_id;
   }
   if (use_doorsensor) {
     json["door_id"] = door_id;
@@ -1591,6 +1631,7 @@ void setup() {
   use_pressure = prefs.getUInt("use_pressure", use_pressure);
   use_doorsensor = prefs.getUInt("use_doorsensor", use_doorsensor);
   use_co2 = prefs.getUInt("use_co2", use_co2);
+  use_tvoc = prefs.getUInt("use_tvoc", use_tvoc);
 
   use_fan = prefs.getUInt("use_fan", use_fan);
   manage_fan = prefs.getUInt("manage_fan", manage_fan);
@@ -1608,6 +1649,7 @@ void setup() {
   humid_id = prefs.getString("humiditylabel", humid_id);
   press_id = prefs.getString("pressurelabel", press_id);
   co2_id = prefs.getString("co2label", co2_id);
+  tvoc_id = prefs.getString("tvoclabel", tvoc_id);
   door_id = prefs.getString("doorlabel", door_id);
 
   if (use_relay) {
@@ -1719,6 +1761,15 @@ void setup() {
       templog = new DataLog();
     }
     humidlog = new DataLog(6 * 5 * 5);
+  }
+  if (use_tvoc) {
+#ifdef USE_SGP30
+    if (! sgp.begin()){
+      DPRINTLN("SGP30 Sensor not found :(");
+    }
+    DPRINTLN("SGP30 Sensor Started :)");
+#endif
+    tvoclog = new DataLog(6 * 5 * 5);
   }
   if (use_co2) {
     co2log = new DataLog();
@@ -1885,6 +1936,10 @@ void loop() {
       getTemp();
     }
 
+    if (timer_count % (10) == 6) {
+      getTVOC();
+    }
+
     if (timer_count % (10) == 8) {
       getPressure();
     }
@@ -1923,6 +1978,9 @@ void loop() {
       }
       if (use_pressure) {
         post_value(press_id, pressurelog->average());
+      }
+      if (use_tvoc) {
+        post_value(tvoc_id, tvoclog->average());
       }
     }
 

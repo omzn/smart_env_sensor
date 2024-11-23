@@ -1,11 +1,13 @@
 #ifndef SMART_ENV_ESP32_H
 #define SMART_ENV_ESP32_H
+#include <Arduino.h>
 
 #define USE_GROVE_ENV3
 // #define USE_HAT_ENV3
 //#define USE_SCD4X
 // #define USE_MHZ19
 // #define USE_DS18B20
+#define USE_SGP30
 
 #if defined(ARDUINO_M5Stack_ATOM)
   #define PIN_ONEWIRE   (25)
