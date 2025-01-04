@@ -21,6 +21,11 @@ ATOM HUB Switch Dを利用すると，リレーを制御もできます．
 * Fan
 * ATOM HUB Switch D
 
+## How to use
+
+`smart_env_esp32.h`にて利用するデバイスを設定します．
+
+
 ## GitHub
 
 https://github.com/omzn/
