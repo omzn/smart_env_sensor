@@ -39,6 +39,7 @@ Supported sensors / relays
 #include <Wire.h>
 #include <pgmspace.h>
 
+#include "lcd16x2.h"
 #include "board.h"
 #include "smart_env_esp32.h"  // Configuration parameters
 
@@ -114,22 +115,21 @@ uint32_t timer_count = 0;
 uint32_t p_millis;
 uint8_t rtcint, btnint;
 
-uint8_t lcd_rotation = 0;
+bool use_thermo = false;
+bool use_humidity = false; 
+bool use_pressure = false;
+bool use_co2 = false;
+bool use_doorsensor = false;
+bool use_fan = false;
+bool use_relay = false;
+bool use_extrelay = false;
+bool use_tplug = false;
+bool use_tvoc = false;
+bool use_lcd = false;
 
-uint8_t use_thermo = 0;
-uint8_t use_humidity = 0; 
-uint8_t use_pressure = 0;
-uint8_t use_co2 = 0;
-uint8_t use_doorsensor = 0;
-uint8_t use_fan = 0;
-uint8_t use_relay = 0;
-uint8_t use_extrelay = 0;
-uint8_t use_tplug = 0;
-uint8_t use_tvoc = 0;
-
-uint8_t manage_fan = 0;
-uint8_t manage_relay1 = 0;
-uint8_t manage_relay2 = 0;
+bool manage_fan = false;
+bool manage_relay1 = 0;
+bool manage_relay2 = 0;
 
 uint8_t door = DOOR_OPEN, prev_door = DOOR_OPEN;
 uint32_t door_count;
@@ -173,6 +173,8 @@ TPLinkSmartPlug *tplug;
 
 Fan fan(FAN_PIN,70);
 
+Lcd16x2 lcd;
+
 String error_message;
 
 DataLog *templog, *humidlog, *co2log, *pressurelog, *tvoclog;
@@ -201,6 +203,12 @@ String timestamp() {
           now.day(), now.hour(), now.minute(), now.second());
   ts = str;
   return ts;
+}
+
+uint32_t timestamp_epoch() {
+  String ts;
+  DateTime now = rtc.now();
+  return now.unixtime();
 }
 
 /*
@@ -447,7 +455,11 @@ int getStatus(float *t, float *h, String url) {
   }
 
   JsonDocument root;
-  deserializeJson(root, body);
+  DeserializationError error = deserializeJson(root, body);
+  if (error) {
+    DPRINTLN("deserializeJson() failed.");
+    return -1;
+  }
   *t = root["air_temp"];
   *h = root["air_humid"];
   return 0;
@@ -911,11 +923,22 @@ void handleFunction() {
   if (webServer.method() == HTTP_POST) {
     body = webServer.arg("plain");
     deserializeJson(json, body);
+    DeserializationError error = deserializeJson(json, body);
+    if (error) {
+      String estr = error.f_str();
+      if (estr != "EmptyInput") {
+        message = F("deserializeJson() failed: ");
+        message += error.f_str();
+        message += "\n";
+        webServer.send(200, "text/plain", message);
+        return;
+      }
+    }
   } else {
     for (int i = 0; i < webServer.args(); i++) {
       argname = webServer.argName(i);
       argv = webServer.arg(i);    
-      json[argname] = argv;
+      json[argname] = argv.toInt();
     }
   }
   if (!json.isNull()) {
@@ -957,7 +980,17 @@ void handleConfig() {
 
   if (webServer.method() == HTTP_POST) {
     body = webServer.arg("plain");
-    deserializeJson(json, body);
+    DeserializationError error = deserializeJson(json, body);
+    if (error) {
+      String estr = error.f_str();
+      if (estr != "EmptyInput") {
+        message = F("deserializeJson() failed: ");
+        message += error.f_str();
+        message += "\n";
+        webServer.send(200, "text/plain", message);
+        return;
+      }
+    }
   }
   if (!json.isNull()) {
     DPRINTLN("Merging json");
@@ -966,7 +999,7 @@ void handleConfig() {
 
     fan.name(prefs_json["fan"]["id"].as<String>());
     if (use_fan) {
-      manage_fan = prefs_json["fan"]["manage_by_humid"].as<int>();
+      manage_fan = prefs_json["fan"]["manage_by_humid"].as<bool>();
       fan.targetHumid(prefs_json["fan"]["target_humid"].as<float>());
     }
     if (use_relay) {
@@ -976,138 +1009,23 @@ void handleConfig() {
       relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
       relay2->onTemp(prefs_json["relay2"]["on_temp"].as<float>());
       relay2->offTemp(prefs_json["relay2"]["off_temp"].as<float>());
-      manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<int>();
-      manage_relay2 = prefs_json["relay2"]["manage_by_temp"].as<int>();
+      manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
+      manage_relay2 = prefs_json["relay2"]["manage_by_temp"].as<bool>();
     }
     if(use_extrelay) {
       relay1->name(prefs_json["relay1"]["id"].as<String>());
       relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
       relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
-      manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<int>();
+      manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
     }
     if(use_tplug) {
       relay1->name(prefs_json["relay1"]["id"].as<String>());
       relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
       relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
-      manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<int>();
-    }
-
-  }
-
-/*
-  for (int i = 0; i < webServer.args(); i++) {
-    argname = webServer.argName(i);
-    argv = webServer.arg(i);
-    DPRINT("argname:");
-    DPRINT(argname);
-    DPRINT(" = ");
-    DPRINTLN(argv);
-
-    if (argname == "hostname") {
-      website_name = argv;
-      prefs.putString("hostname", website_name);
-      WiFi.setHostname(website_name.c_str());
-    } else if (argname == "enable_push") {
-      enable_push = argv == "true" ? 1 : 0;
-      prefs.putUInt("use_postdb", enable_push);
-    } else if (argname == "co2_id") {
-      co2_id = argv;
-      prefs.putString("co2label", co2_id);
-    } else if (argname == "tvoc_id") {
-      tvoc_id = argv;
-      prefs.putString("tvoclabel", tvoc_id);
-    } else if (argname == "door_id") {
-      door_id = argv;
-      prefs.putString("doorlabel", door_id);
-    } else if (argname == "url_endpoint") {
-      url_endpoint = argv;
-      prefs.putString("url_endpoint", url_endpoint);
-    } else if (argname == "url_extrelay") {
-      url_extrelay = argv;
-      prefs.putString("url_extrelay", url_extrelay);
-    } else if (argname == "host_tplug") {
-      host_tplug = argv;
-      prefs.putString("host_tplug", host_tplug);
-    } else if (argname == "manage_relay1") {
-      manage_relay1 = (argv == "true") ? 1 : 0;
-      prefs.putUChar("manage_relay1", manage_relay1);
-    } else if (argname == "manage_relay2") {
-      manage_relay2 = (argv == "true") ? 1 : 0;
-      prefs.putUChar("manage_relay2", manage_relay2);
-    } else if (argname == "relay1_on_temp") {
-      relay1->onTemp(argv.toFloat());
-      prefs.putFloat("r1_on_temp", relay1->onTemp());
-    } else if (argname == "relay1_off_temp") {
-      relay1->offTemp(argv.toFloat());
-      prefs.putFloat("r1_off_temp", relay1->offTemp());
-    } else if (argname == "relay2_on_temp") {
-      relay2->onTemp(argv.toFloat());
-      prefs.putFloat("r2_on_temp", relay2->onTemp());
-    } else if (argname == "relay2_off_temp") {
-      relay2->offTemp(argv.toFloat());
-      prefs.putFloat("r2_off_temp", relay2->offTemp());
-    } else if (argname == "relay1_id") {
-      relay1->name(argv);
-      prefs.putString("relay1_id", relay1->name());
-    } else if (argname == "relay2_id") {
-      relay2->name(argv);
-      prefs.putString("relay2_id", relay2->name());
-    } else if (argname == "fan_id") {
-      fan.name(argv);
-      prefs.putString("fan_id", fan.name());
+      manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
     }
   }
 
-  json["hostname"] = website_name;
-  json["enable_push"] = enable_push > 0 ? "true" : "false";
-  json["url_endpoint"] = url_endpoint;
-
-  if (use_fan) {
-    filter["manage_fan"] = true;
-    filter["target_humid"] = true;
-    filter["fan_id"] = true;
-  }
-  if (use_relay) {
-    filter["manage_relay1"] = true;
-    filter["relay1_on_temp"] = true;
-    filter["relay1_off_temp"] = true;
-    filter["manage_relay2"] = true;
-    filter["relay2_on_temp"] = true;
-    filter["relay2_off_temp"] = true;
-    filter["relay1_id"] = true;
-    filter["relay2_id"] = true;
-  }
-  if (use_extrelay) {
-    filter["url_extrelay"] = true;
-    filter["manage_relay1"] = true;
-    filter["relay1_on_temp"] = true;
-    filter["relay1_off_temp"] = true;
-    filter["relay1_id"] = true;
-  }
-  if (use_tplug) {
-    filter["host_tplug"] = true;
-    filter["manage_relay1"] = true;
-    filter["relay1_on_temp"] = true;
-    filter["relay1_off_temp"] = true;
-    filter["relay1_id"] = true;
-  }
-  if (use_humidity) {
-    filter["temp_id"] = true;
-    filter["humidity_id"] = true;
-  }
-  if (use_pressure) {
-    filter["pressure_id"] = true;
-  }
-  if (use_co2) {
-    filter["co2_id"] = true;
-  }
-  if (use_tvoc) {
-    filter["tvoc_id"] = true;
-  }
-  if (use_doorsensor) {
-    filter["door_id"] = true;
-  }
-*/
   serializeJson(prefs_json,message);
   webServer.send(200, "application/json", message);
 }
@@ -1265,7 +1183,7 @@ void handleRelay() {
 // サーバに値を登録
 void post_value(String label, float value) {
   char params[128];
-  int enable_push = prefs_json["enable_push"].as<int>();
+  int enable_push = prefs_json["enable_push"].as<bool>();
   if (enable_push) {
     String apiurl = prefs_json["url_endpoint"].as<String>() + "/aqua/add";
     String ipaddress = WiFi.localIP().toString();
@@ -1310,7 +1228,7 @@ void post_value(String label, float value) {
 // サーバに文字列を登録
 void post_note(String label, String value) {
   char params[128];
-  int enable_push = prefs_json["enable_push"].as<int>();
+  int enable_push = prefs_json["enable_push"].as<bool>();
   if (enable_push) {
     String apiurl = prefs_json["url_endpoint"].as<String>() + "/aqua/add";
     String ipaddress = WiFi.localIP().toString();
@@ -1355,7 +1273,7 @@ void post_note(String label, String value) {
 // サーバに生存情報を登録
 void post_alive() {
   char params[128];
-  int enable_push = prefs_json["enable_push"].as<int>();
+  int enable_push = prefs_json["enable_push"].as<bool>();
   if (enable_push) {
     String apiurl = prefs_json["url_endpoint"].as<String>() + "/aqua/alive";
     String ipaddress = WiFi.localIP().toString();
@@ -1498,7 +1416,6 @@ String urlDecode(String input) {
   return s;
 }
 
-
 /*
                                                        
                                                       
@@ -1533,13 +1450,13 @@ void setup() {
 
   prefs.begin("env", false);
   //  prefs.clear();
-  deserializeJson(func_json, prefs.getString("function", F("{\"use_thermo\":0,\"use_humidity\":0,\"use_pressure\":0,"
-                                                          "\"use_doorsensor\":0,\"use_co2\":0,\"use_tvoc\":0,"
-                                                          "\"use_fan\":0,\"use_relay\":0,\"use_extrelay\":0,\"use_tplug\":0}")));
+  deserializeJson(func_json, prefs.getString("function", F("{\"use_thermo\":false,\"use_humidity\":false,\"use_pressure\":false,"
+                                                          "\"use_doorsensor\":false,\"use_co2\":false,\"use_tvoc\":false,"
+                                                          "\"use_fan\":false,\"use_relay\":false,\"use_extrelay\":false,\"use_tplug\":false,\"use_lcd\":false}")));
   deserializeJson(prefs_json, prefs.getString("prefs", F("{\"hostname\":\"envsensor\",\"enable_push\":0,\"url_endpoint\":\"http://myserver:3000\","
-                                                        "\"fan\":{\"id\":\"fan\",\"manage_by_humid\":0,\"target_humid\":50},"
-                                                        "\"relay1\":{\"id\":\"relay1\",\"manage_by_temp\":0,\"on_temp\":25.0,\"off_temp\":30.0},"
-                                                        "\"relay2\":{\"id\":\"relay2\",\"manage_by_temp\":0,\"on_temp\":25.0,\"off_temp\":30.0},"
+                                                        "\"fan\":{\"id\":\"fan\",\"manage_by_humid\":false,\"target_humid\":50},"
+                                                        "\"relay1\":{\"id\":\"relay1\",\"manage_by_temp\":false,\"on_temp\":25.0,\"off_temp\":30.0},"
+                                                        "\"relay2\":{\"id\":\"relay2\",\"manage_by_temp\":false,\"on_temp\":25.0,\"off_temp\":30.0},"
                                                         "\"url_extrelay\":\"http://myextrelay:3000\",\"host_tplug\":\"\","
                                                         "\"temp\":{\"id\":\"temp\"},\"humidity\":{\"id\":\"humidity\"},"
                                                         "\"pressure\":{\"id\":\"pressure\"},\"door\":{\"id\":\"door\"},"
@@ -1555,18 +1472,23 @@ void setup() {
 #endif
 #endif
 
-  use_thermo = func_json["use_thermo"].as<int>();
-  use_humidity = func_json["use_humidity"].as<int>();
-  use_pressure = func_json["use_pressure"].as<int>();
-  use_doorsensor = func_json["use_doorsensor"].as<int>();
-  use_co2 = func_json["use_co2"].as<int>();
-  use_tvoc = func_json["use_tvoc"].as<int>();
-  use_fan = func_json["use_fan"].as<int>();
-  use_relay = func_json["use_relay"].as<int>();
-  use_extrelay = func_json["use_extrelay"].as<int>();
-  use_tplug = func_json["use_tplug"].as<int>();
+  use_thermo = func_json["use_thermo"].as<bool>();
+  use_humidity = func_json["use_humidity"].as<bool>();
+  use_pressure = func_json["use_pressure"].as<bool>();
+  use_doorsensor = func_json["use_doorsensor"].as<bool>();
+  use_co2 = func_json["use_co2"].as<bool>();
+  use_tvoc = func_json["use_tvoc"].as<bool>();
+  use_fan = func_json["use_fan"].as<bool>();
+  use_relay = func_json["use_relay"].as<bool>();
+  use_extrelay = func_json["use_extrelay"].as<bool>();
+  use_tplug = func_json["use_tplug"].as<bool>();
+  use_lcd = func_json["use_lcd"].as<bool>();
 
   fan.name(prefs_json["fan"]["id"].as<String>());
+
+  if (use_lcd) {
+    lcd.begin();
+  }
 
   if (use_fan) {
     manage_fan = prefs_json["fan"]["manage_by_humid"];
@@ -1590,8 +1512,8 @@ void setup() {
     relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
     relay2->onTemp(prefs_json["relay2"]["on_temp"].as<float>());
     relay2->offTemp(prefs_json["relay2"]["off_temp"].as<float>());
-    manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<int>();
-    manage_relay2 = prefs_json["relay2"]["manage_by_temp"].as<int>();
+    manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
+    manage_relay2 = prefs_json["relay2"]["manage_by_temp"].as<bool>();
   }
 
   delay(100);
@@ -1650,7 +1572,7 @@ void setup() {
     relay1->relay(prefs.getUChar("relay1_state", 0));
     relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
     relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
-    manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<int>();
+    manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
   }
   if (use_tplug) {
     tplug = new TPLinkSmartPlug();
@@ -1661,7 +1583,7 @@ void setup() {
     relay1->relay(prefs.getUChar("relay1_state", 0));
     relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
     relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
-    manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<int>();
+    manage_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
   }
 
   if (use_fan) {
@@ -1879,6 +1801,16 @@ void loop() {
       // getRelayStatus(&heater_status, url_relay);
       // getRelayStatus(&heater2_status, url_relay2);
       DRAWSCREEN(true);
+      if (use_lcd) {
+        lcd.setCursor(0, 0);
+        lcd.printStr("T:");
+        lcd.setCursor(2, 0);
+        lcd.printFloat(templog->latest(), 4, 1);
+        lcd.setCursor(0, 1);
+        lcd.printStr("H:");  
+        lcd.setCursor(2, 1);
+        lcd.printFloat(humidlog->latest(), 4, 1);
+      }
     }
 
     if (timer_count % (600) == 10) {  // 10分
@@ -1912,6 +1844,24 @@ void loop() {
       }
       if (use_tvoc) {
         post_value(prefs_json["tvoc"]["id"].as<String>(), tvoclog->average());
+      }
+      if (use_lcd) {  
+        uint32_t fs = prefs_json["fetch_start"][0];
+        lcd.setCursor(8,0);
+        lcd.printStr("Day:");
+        if(fs > 0) {
+          float elapsed_days1 =
+              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+          lcd.setCursor(12,0);
+          lcd.printInt((int)elapsed_days1,3);
+        }
+        fs = prefs_json["fetch_start"][1].as<int>();
+        if(fs > 0) {
+          float elapsed_days2 =
+              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+          lcd.setCursor(12,1);
+          lcd.printInt((int)elapsed_days2,3);
+        }
       }
     }
 
