@@ -3,6 +3,7 @@
 #include "Arduino.h"
 
 #include "TPLinkSmartPlug.h"
+#include <RTClib.h>
 
 class Relay
 {
@@ -16,10 +17,13 @@ class Relay
         bool state();
         uint32_t pixel(uint32_t p);
         int manageByTemperature(float t);
+        int manageByTime(DateTime now);
         float onTemp();
         float offTemp();
         void onTemp(float);
         void offTemp(float);
+        void onTime(String);
+        void offTime(String);
         void name(String);
         String name();
     private:
@@ -30,6 +34,10 @@ class Relay
         float _on_temp;
         float _off_temp;
         String _api = "";
+        String _on_time;
+        String _off_time;
+        int _last_on = 0;
+        int _last_off = 0;
         int _request(bool state);
         TPLinkSmartPlug *_tplug = NULL;
 };

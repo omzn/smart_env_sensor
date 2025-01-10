@@ -96,3 +96,64 @@ int Relay::manageByTemperature(float t) {
   }
   return 0;
 }
+
+void Relay::onTime(String t) { _on_time = t; }
+
+void Relay::offTime(String t) { _off_time = t; }
+
+int Relay::manageByTime(DateTime now) {
+  int idx, prev_idx = 0;
+
+  if (_on_time != "") {
+    do {
+      idx = _on_time.indexOf(",", prev_idx);
+      if (idx < 0) {
+        idx = _on_time.length();
+      }
+      String tstring = _on_time.substring(prev_idx, idx);
+      if (tstring != "") {
+        int tidx = tstring.indexOf(":");
+        int hourmin = tstring.substring(0, tidx).toInt() * 60 +
+                      tstring.substring(tidx + 1).toInt();
+        //        Serial.print("on_relay1:");
+        //        Serial.println(hourmin);
+        if (now.hour() * 60 + now.minute() == hourmin &&
+            _last_on != hourmin) {
+          _last_on = hourmin;
+          if (!_state) {
+            on();
+            return 1;
+          }
+        }
+      }
+      prev_idx = idx + 1;
+    } while (idx < _on_time.length());
+  }
+  prev_idx = 0;
+  if (_off_time != "") {
+    do {
+      idx = _off_time.indexOf(",", prev_idx);
+      if (idx < 0) {
+        idx = _off_time.length();
+      }
+      String tstring = _off_time.substring(prev_idx, idx);
+      if (tstring != "") {
+        int tidx = tstring.indexOf(":");
+        int hourmin = tstring.substring(0, tidx).toInt() * 60 +
+                      tstring.substring(tidx + 1).toInt();
+        //        Serial.print("on_relay1:");
+        //        Serial.println(hourmin);
+        if (now.hour() * 60 + now.minute() == hourmin &&
+            _last_off != hourmin) {
+          _last_off = hourmin;
+          if (_state) {
+            off();
+            return 1;
+          }
+        }
+      }
+      prev_idx = idx + 1;
+    } while (idx < _off_time.length());
+  }
+  return 0;
+}
