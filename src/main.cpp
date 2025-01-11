@@ -20,7 +20,7 @@ Supported sensors / relays
 #elif defined(ARDUINO_M5Stack_ATOMS3)
 #include <M5AtomS3.h>
 #elif defined(ARDUINO_M5STACK_FIRE)
-#include <M5EPD.h>
+#include <M5Unified.h>
 #endif
 
 //#define HAS_DISPLAY 1   // HAS_DISPLAY は platformio.ini で設定する．
@@ -42,7 +42,14 @@ Supported sensors / relays
 #include <pgmspace.h>
 
 #include "lcd16x2.h"
+
+
+#if defined(ARDUINO_M5STACK_FIRE)
+#include "board960.h"
+#else
 #include "board.h"
+#endif
+
 #include "smart_env_esp32.h"  // Configuration parameters
 
 #if defined(ARDUINO_M5Stack_ATOM)
@@ -64,6 +71,26 @@ Supported sensors / relays
     #define FONT_7SEG_MEDIUM M5.Lcd.setFreeFont(&DSEG7Classic_BoldItalic14pt7b)
     #define FONT_7SEG_SMALL M5.Lcd.setFreeFont(&DSEG7Classic_BoldItalic12pt7b)
     #define FONT_7SEG_TINY M5.Lcd.setFreeFont(&DSEG7Classic_BoldItalic9pt7b)
+  #else
+    #define DRAWSCREEN(...)
+    // Include the header files that contain the icons
+  #endif    
+#elif defined(ARDUINO_M5STACK_FIRE)
+  #define DRAWPIX(pixelcolor)    
+  #if HAS_DISPLAY
+    #define DRAWSCREEN(...)        drawScreen(__VA_ARGS__)
+    #include "DSEG7Classic-BoldItalic12pt7b.h"
+    #include "DSEG7Classic-BoldItalic14pt7b.h"
+    #include "DSEG7Classic-BoldItalic16pt7b.h"
+    #include "DSEG7Classic-BoldItalic24pt7b.h"
+    #include "DSEG7Classic-BoldItalic32pt7b.h"
+    #include "DSEG7Classic-BoldItalic9pt7b.h"
+    #define FONT_7SEG_LARGE M5.Lcd.setFont(&DSEG7Classic_BoldItalic32pt7b)
+    #define FONT_7SEG_BIG M5.Lcd.setFont(&DSEG7Classic_BoldItalic24pt7b)
+    #define FONT_7SEG M5.Lcd.setFont(&DSEG7Classic_BoldItalic16pt7b)
+    #define FONT_7SEG_MEDIUM M5.Lcd.setFont(&DSEG7Classic_BoldItalic14pt7b)
+    #define FONT_7SEG_SMALL M5.Lcd.setFont(&DSEG7Classic_BoldItalic12pt7b)
+    #define FONT_7SEG_TINY M5.Lcd.setFont(&DSEG7Classic_BoldItalic9pt7b)
   #else
     #define DRAWSCREEN(...)
     // Include the header files that contain the icons
@@ -537,7 +564,7 @@ int getStatus(float *t, float *h, String url) {
   return 0;
 }
 
-#if defined(ARDUINO_M5Stack_ATOMS3) && HAS_DISPLAY
+#if (defined(ARDUINO_M5Stack_ATOMS3) || defined(ARDUINO_M5STACK_FIRE)) && HAS_DISPLAY
 /*
                                                                                                                       
    ad88                                                                                88 88             88          
@@ -733,7 +760,12 @@ a8"    `Y88 88P'   "Y8 ""     `Y8 `8b    d88b    d8'   `"""""8b, a8"     "" 88P'
 /* 画面描画 */
 void drawScreen(bool value_only = false) {
   if (!value_only) {
+#ifdef ARDUINO_M5STACK_FIRE    
+    M5.Lcd.startWrite();
+    M5.Lcd.drawPng(th128,sizeof(th128),0,0);
+#else
     M5.Lcd.pushImage(0, 0, th128Width, th128Height, th128);
+#endif
     M5.Lcd.setTextFont(0);
     M5.Lcd.setCursor(58, 5);
 //    M5.Lcd.print(WiFi.localIP()[3]);
@@ -741,10 +773,37 @@ void drawScreen(bool value_only = false) {
     M5.Lcd.print(hostname);
   }
   if (use_thermo || use_humidity)
+#ifdef ARDUINO_M5STACK_FIRE    
+    drawOneValue(200, 125, templog->latest(), TFT_BLACK, FONT_LARGE);
+#else
     drawOneValue(9, 28, templog->latest(), (use_relay || use_extrelay || use_tplug) ? (relay1->state() ? TFT_RED : TFT_GREEN) : TFT_GREEN, FONT_SMALL);
-  if (use_humidity)
+#endif
+  if (use_humidity) {
+#ifdef ARDUINO_M5STACK_FIRE    
+    drawOneValue(200, 385, humidlog->latest(), TFT_BLACK, FONT_LARGE);
+    uint32_t fs = prefs_json["fetch_start"][0];
+    if (fs > 0) {
+      float elapsed_days1 =
+              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+      drawOneValue(700, 125, elapsed_days1, TFT_BLACK, FONT_LARGE);
+    }
+    fs = prefs_json["fetch_start"][1].as<int>();
+    if (fs > 0) {
+      float elapsed_days2 =
+              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+      drawOneValue(700, 385, elapsed_days2, TFT_BLACK, FONT_LARGE);
+    }
+#else
     drawOneValue(9, 84, humidlog->latest(), use_fan ? (fan.fan() ? TFT_BLUE : TFT_CYAN) : TFT_CYAN, FONT_SMALL);
+#endif
+  }
+#ifdef ARDUINO_M5STACK_FIRE    
+    M5.Lcd.endWrite();
+#endif
 }
+
+
+
 #endif
 
 
@@ -1526,6 +1585,9 @@ void setup() {
 #elif defined(ARDUINO_M5Stack_ATOMS3)
   M5.begin(true,true,true,true);
 //  M5.IMU.begin();
+#elif defined(ARDUINO_M5STACK_FIRE)
+  M5.begin();
+  M5.Lcd.setRotation(1);
 #else
   M5.begin();
 #endif
@@ -1743,7 +1805,11 @@ void loop() {
 
   M5.update();
 
+#if defined(ARDUINO_M5STACK_FIRE)
+  if (M5.BtnA.wasReleased()) {
+#else
   if (M5.Btn.wasReleased()) {
+#endif
     //    M5.dis.drawpix(0, 0x007f00);
     //    if (use_co2) {
     //      mhz19.calibrateZero();
@@ -1851,6 +1917,11 @@ void loop() {
       getPressure();
     }
 
+#ifdef ARDUINO_M5STACK_FIRE
+    if (timer_count % 60 == 0) {  // 60秒おき
+      DRAWSCREEN();
+    }
+#else
     if (timer_count % 2 == 0) {  // 2秒おき
       // getRelayStatus(&heater_status, url_relay);
       // getRelayStatus(&heater2_status, url_relay2);
@@ -1866,6 +1937,7 @@ void loop() {
         lcd.printFloat(humidlog->latest(), 4, 1);
       }
     }
+#endif
 
     if (timer_count % (600) == 10) {  // 10分
       if (use_co2) {
