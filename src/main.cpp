@@ -87,7 +87,7 @@ Supported sensors / relays
 #include <Adafruit_SGP30.h>
 #endif
 
-#define DEFAULT_CONFIG F("{\"hostname\":\"envsensor\",\"enable_push\":0,\"url_endpoint\":\"http://myserver:3000\",\"fan\":{\"id\":\"fan\",\"manage_by_humid\":false,\"target_humid\":50},\"relay1\":{\"id\":\"relay1\",\"manage_by_temp\":false,\"on_temp\":25.0,\"off_temp\":30.0},\"relay2\":{\"id\":\"relay2\",\"manage_by_temp\":false,\"on_temp\":25.0,\"off_temp\":30.0},\"url_extrelay\":\"http://myextrelay:3000\",\"host_tplug\":\"\",\"temp\":{\"id\":\"temp\"},\"humidity\":{\"id\":\"humidity\"},\"pressure\":{\"id\":\"pressure\"},\"door\":{\"id\":\"door\"},\"co2\":{\"id\":\"co2\"},\"tvoc\":{\"id\":\"tvoc\"}}")
+#define DEFAULT_CONFIG F("{\"hostname\":\"mysensor\",\"enable_push\":false,\"url_endpoint\":\"http://myserver:3000\",\"fan\":{\"id\":\"fan\",\"manage_by_humid\":false,\"target_humid\":50},\"relay1\":{\"id\":\"relay1\",\"manage_by_temp\":false,\"on_temp\":25,\"off_temp\":30,\"manage_by_time\":false,\"on_time\":\"10:00,12:00\",\"off_time\":\"11:00,18:00\"},\"relay2\":{\"id\":\"relay2\",\"manage_by_temp\":false,\"on_temp\":25,\"off_temp\":30,\"manage_by_time\":false,\"on_time\":\"10:00,11:00\",\"off_time\":\"10:10,11:10\"},\"url_extrelay\":\"http://myextrelay:3000\",\"host_tplug\":\"\",\"temp\":{\"id\":\"mytemp1\"},\"humidity\":{\"id\":\"myhumid1\"},\"pressure\":{\"id\":\"mypressure\"},\"door\":{\"id\":\"mydoor\"},\"co2\":{\"id\":\"myco2\"},\"tvoc\":{\"id\":\"mytvoc\"}}")
 #define DEFAULT_FUNCTION F("{\"use_thermo\":false,\"use_humidity\":false,\"use_pressure\":false,\"use_doorsensor\":false,\"use_co2\":false,\"use_tvoc\":false,\"use_fan\":false,\"use_relay\":false,\"use_extrelay\":false,\"use_tplug\":false,\"use_lcd\":false}")
 
 #include "debugmacros.h"
