@@ -84,13 +84,13 @@ Supported sensors / relays
     #include "DSEG7Classic-BoldItalic16pt7b.h"
     #include "DSEG7Classic-BoldItalic24pt7b.h"
     #include "DSEG7Classic-BoldItalic32pt7b.h"
-    #include "DSEG7Classic-BoldItalic9pt7b.h"
-    #define FONT_7SEG_LARGE M5.Lcd.setFont(&DSEG7Classic_BoldItalic32pt7b)
-    #define FONT_7SEG_BIG M5.Lcd.setFont(&DSEG7Classic_BoldItalic24pt7b)
-    #define FONT_7SEG M5.Lcd.setFont(&DSEG7Classic_BoldItalic16pt7b)
-    #define FONT_7SEG_MEDIUM M5.Lcd.setFont(&DSEG7Classic_BoldItalic14pt7b)
-    #define FONT_7SEG_SMALL M5.Lcd.setFont(&DSEG7Classic_BoldItalic12pt7b)
-    #define FONT_7SEG_TINY M5.Lcd.setFont(&DSEG7Classic_BoldItalic9pt7b)
+    #include "DSEG7Classic-BoldItalic48pt7b.h"
+    #define FONT_7SEG_LARGE M5.Lcd.setFont(&DSEG7Classic_BoldItalic48pt7b)
+    #define FONT_7SEG_BIG M5.Lcd.setFont(&DSEG7Classic_BoldItalic32pt7b)
+    #define FONT_7SEG M5.Lcd.setFont(&DSEG7Classic_BoldItalic24pt7b)
+    #define FONT_7SEG_MEDIUM M5.Lcd.setFont(&DSEG7Classic_BoldItalic16pt7b)
+    #define FONT_7SEG_SMALL M5.Lcd.setFont(&DSEG7Classic_BoldItalic14pt7b)
+    #define FONT_7SEG_TINY M5.Lcd.setFont(&DSEG7Classic_BoldItalic12pt7b)
   #else
     #define DRAWSCREEN(...)
     // Include the header files that contain the icons
@@ -755,7 +755,7 @@ a8"    `Y88 88P'   "Y8 ""     `Y8 `8b    d88b    d8'   `"""""8b, a8"     "" 88P'
                                                                                                                           
                                                                                                                           
 
- */
+*/
 
 /* 画面描画 */
 void drawScreen(bool value_only = false) {
@@ -763,35 +763,47 @@ void drawScreen(bool value_only = false) {
 #ifdef ARDUINO_M5STACK_FIRE    
     M5.Lcd.startWrite();
     M5.Lcd.drawPng(th128,sizeof(th128),0,0);
+    M5.Lcd.setFont(&fonts::Font2);
+    M5.Lcd.setCursor(440, 540-20);
 #else
     M5.Lcd.pushImage(0, 0, th128Width, th128Height, th128);
-#endif
     M5.Lcd.setTextFont(0);
     M5.Lcd.setCursor(58, 5);
+#endif
 //    M5.Lcd.print(WiFi.localIP()[3]);
     String hostname = prefs_json["hostname"].as<String>();  
     M5.Lcd.print(hostname);
   }
   if (use_thermo || use_humidity)
 #ifdef ARDUINO_M5STACK_FIRE    
-    drawOneValue(200, 125, templog->latest(), TFT_BLACK, FONT_LARGE);
+    drawOneValue(175, 110, templog->latest(), TFT_BLACK, FONT_LARGE);
+    if ((use_relay || use_extrelay || use_tplug) && (relay1->state())) {
+//      M5.Lcd.setFont(&fonts::Font4);
+      M5.Lcd.drawPng(heater_png,sizeof(heater_png),100,110+10);
+//      M5.Lcd.drawString("Heater active", 250, 70);
+    }
 #else
     drawOneValue(9, 28, templog->latest(), (use_relay || use_extrelay || use_tplug) ? (relay1->state() ? TFT_RED : TFT_GREEN) : TFT_GREEN, FONT_SMALL);
 #endif
   if (use_humidity) {
 #ifdef ARDUINO_M5STACK_FIRE    
-    drawOneValue(200, 385, humidlog->latest(), TFT_BLACK, FONT_LARGE);
+    drawOneValue(175, 365, humidlog->latest(), TFT_BLACK, FONT_LARGE);
+    if (use_fan && fan.fan()) {
+//      M5.Lcd.setFont(&fonts::Font4);
+      M5.Lcd.drawPng(fan_png,sizeof(fan_png),100,365+10);
+//      M5.Lcd.drawString("Fan active", 250, 325);
+    }
     uint32_t fs = prefs_json["fetch_start"][0];
     if (fs > 0) {
       float elapsed_days1 =
               fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
-      drawOneValue(700, 125, elapsed_days1, TFT_BLACK, FONT_LARGE);
+      drawOneValue(620, 110, elapsed_days1, TFT_BLACK, FONT_LARGE);
     }
     fs = prefs_json["fetch_start"][1].as<int>();
     if (fs > 0) {
       float elapsed_days2 =
               fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
-      drawOneValue(700, 385, elapsed_days2, TFT_BLACK, FONT_LARGE);
+      drawOneValue(620, 365, elapsed_days2, TFT_BLACK, FONT_LARGE);
     }
 #else
     drawOneValue(9, 84, humidlog->latest(), use_fan ? (fan.fan() ? TFT_BLUE : TFT_CYAN) : TFT_CYAN, FONT_SMALL);
@@ -1682,6 +1694,9 @@ void setup() {
 
   config();
 
+  DPRINTF("use_fan %d \n", use_fan);
+  DPRINTF("pref:fan:manage_by_humid %d \n", prefs_json["fan"]["manage_by_humid"].as<bool>());
+  DPRINTF("manage_fan %d \n", manage_fan);
   if (use_fan) {
     pinMode(FAN_PIN, OUTPUT);
     analogWrite(FAN_PIN, 0);
@@ -1971,22 +1986,24 @@ void loop() {
       if (use_tvoc) {
         post_value(prefs_json["tvoc"]["id"].as<String>(), tvoclog->average());
       }
-      if (use_lcd) {  
-        uint32_t fs = prefs_json["fetch_start"][0];
-        lcd.setCursor(8,0);
-        lcd.printStr("Day:");
-        if(fs > 0) {
-          float elapsed_days1 =
-              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
-          lcd.setCursor(12,0);
-          lcd.printInt((int)elapsed_days1,3);
-        }
-        fs = prefs_json["fetch_start"][1].as<int>();
-        if(fs > 0) {
-          float elapsed_days2 =
-              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
-          lcd.setCursor(12,1);
-          lcd.printInt((int)elapsed_days2,3);
+      if (use_lcd) {
+        if (!prefs_json["fetch_start"].isNull()) { 
+          uint32_t fs = prefs_json["fetch_start"][0];
+          lcd.setCursor(8,0);
+          lcd.printStr("Day:");
+          if(fs > 0) {
+            float elapsed_days1 =
+                fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+            lcd.setCursor(12,0);
+            lcd.printInt((int)elapsed_days1,3);
+          }
+          fs = prefs_json["fetch_start"][1].as<int>();
+          if(fs > 0) {
+            float elapsed_days2 =
+                fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+            lcd.setCursor(12,1);
+            lcd.printInt((int)elapsed_days2,3);
+          }
         }
       }
     }
