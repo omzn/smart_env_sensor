@@ -61,7 +61,7 @@
   #define MHZ19_PIN_RX   (39) // Rx pin which the MHZ19 Tx pin is attached to
   #define MHZ19_PIN_TX   (38)  // Tx pin which the MHZ19 Rx pin is attached to
   #define MHZ19_BAUDRATE 9600
-#elif defined(ARDUINO_M5STACK_Paper)
+#elif defined(ARDUINO_M5STACK_FIRE)
   #define PIN_ONEWIRE   (26)  // PORT.B
   #define PIN_SDA          (25) // PORT.A
   #define PIN_SCL          (32) // PORT.A

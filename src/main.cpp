@@ -19,7 +19,7 @@ Supported sensors / relays
 //#else 
 #elif defined(ARDUINO_M5Stack_ATOMS3)
 #include <M5AtomS3.h>
-#elif defined(ARDUINO_M5STACK_Paper)
+#elif defined(ARDUINO_M5STACK_FIRE)
 #include <M5EPD.h>
 #endif
 
