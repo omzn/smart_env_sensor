@@ -19,6 +19,8 @@ Supported sensors / relays
 //#else 
 #elif defined(ARDUINO_M5Stack_ATOMS3)
 #include <M5AtomS3.h>
+#elif defined(ARDUINO_M5STACK_Paper)
+#include <M5EPD.h>
 #endif
 
 //#define HAS_DISPLAY 1   // HAS_DISPLAY は platformio.ini で設定する．
