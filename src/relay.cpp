@@ -51,7 +51,9 @@ bool Relay::relay(bool state) {
   } else if (_tplug != NULL) {
     _tplug->setRelayState(state);
   } else {
-    digitalWrite(_pin, state ? HIGH : LOW);
+    if (_state != state) {
+      digitalWrite(_pin, state ? HIGH : LOW);
+    }
   }
   _state = state;
   return _state;
@@ -82,17 +84,17 @@ int Relay::manageByTemperature(float t) {
   Serial.printf("relay state: %d temp: %.1f on_temp: %.1f off_temp: %.1f\n",
                 _state, t, _on_temp, _off_temp);
   if (t <= _on_temp) {
-    if (!_state) {
+//    if (!_state) {
       on();
-      Serial.println("relay on");
+      DPRINTLN("relay on");
       return 1;
-    }
+//    }
   } else if (t >= _off_temp) {
-    if (_state) {
+//    if (_state) {
       off();
-      Serial.println("relay off");
+      DPRINTLN("relay off");
       return 1;
-    }
+//    }
   }
   return 0;
 }

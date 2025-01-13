@@ -10,6 +10,10 @@
 //#define USE_SGP30
 
 #if defined(ARDUINO_M5Stack_ATOM)
+  /*
+     GROVE.A G, 5V, 26:SDA, 32:SCL
+     GROVE.B G, 5V, 25:SDA, 21:SCL
+  */
   #define PIN_ONEWIRE   (25)
   // 下はM5StickC用のENV III HATを無理矢理転用した場合．
   // Wire.begin()の前にWire.end()してから設定すると良いらしい(？)
@@ -36,6 +40,10 @@
   #define MHZ19_PIN_TX   (25)  // Tx pin which the MHZ19 Rx pin is attached to
   #define MHZ19_BAUDRATE 9600
 #elif defined(ARDUINO_M5Stack_ATOMS3)
+  /*
+     GROVE.A G, 5V, 2:SDA, 1:SCL
+     GROVE.B G, 5V, 38:SDA, 39:SCL
+  */
   #define PIN_ONEWIRE   (38)
   // 下はM5StickC用のENV III HATを無理矢理転用した場合．
   // Wire.begin()の前にWire.end()してから設定すると良いらしい(？)
@@ -62,6 +70,11 @@
   #define MHZ19_PIN_TX   (38)  // Tx pin which the MHZ19 Rx pin is attached to
   #define MHZ19_BAUDRATE 9600
 #elif defined(ARDUINO_M5STACK_FIRE)
+  /*
+     GROVE.A G, 5V, 25:SDA, 32:SCL
+     GROVE.B G, 5V, 26:SDA, 33:SCL
+     GROVE.C G, 5V, 18:SDA, 19:SCL
+  */
   #define PIN_ONEWIRE   (26)  // PORT.B
   #define PIN_SDA          (25) // PORT.A
   #define PIN_SCL          (32) // PORT.A
@@ -87,6 +100,7 @@ void startWebServer_ap();
 void handleStatus();
 void handleFunction();
 void handleConfig();
+void handleHelp();
 void handleRoot();
 void handleCss();
 void handleReboot();

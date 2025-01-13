@@ -131,6 +131,7 @@ enum { DOOR_OPEN = 0, DOOR_CLOSE };
 
 JsonDocument prefs_json;
 JsonDocument func_json;
+JsonDocument help_json;
 
 const String boolstr[2] = {"false", "true"};
 
@@ -255,6 +256,12 @@ void config() {
   }
 
   if (use_relay) {
+    if (relay1 != NULL) {
+      delete relay1;
+    }
+    if (relay2 != NULL) {
+      delete relay2;
+    }
     relay1 = new Relay(RELAY1_PIN, 0xff0000);
     relay2 = new Relay(RELAY2_PIN, 0x00ff00);
     pinMode(RELAY1_PIN, OUTPUT);
@@ -282,6 +289,9 @@ void config() {
   }
 
   if (use_extrelay) {
+    if (relay1 != NULL) {
+      delete relay1;
+    }
     relay1 = new Relay(prefs_json["url_extrelay"].as<String>());
     relay1->name(prefs_json["relay1"]["id"].as<String>());
     relay1->relay(prefs.getUChar("relay1_state", 0));
@@ -294,9 +304,15 @@ void config() {
   }
 
   if (use_tplug) {
+    if (tplug != NULL) {
+      delete tplug;
+    }
     tplug = new TPLinkSmartPlug();
     tplug->begin(client,udp);
     tplug->setTarget(prefs_json["host_tplug"].as<String>());
+    if (relay1 != NULL) {
+      delete relay1;
+    }
     relay1 = new Relay(tplug);
     relay1->name(prefs_json["relay1"]["id"].as<String>());
     relay1->relay(prefs.getUChar("relay1_state", 0));
@@ -778,8 +794,8 @@ void drawScreen(bool value_only = false) {
 #ifdef ARDUINO_M5STACK_FIRE    
     drawOneValue(175, 110, templog->latest(), TFT_BLACK, FONT_LARGE);
     if ((use_relay || use_extrelay || use_tplug) && (relay1->state())) {
-//      M5.Lcd.setFont(&fonts::Font4);
       M5.Lcd.drawPng(heater_png,sizeof(heater_png),100,110+10);
+//      M5.Lcd.setFont(&fonts::Font4);
 //      M5.Lcd.drawString("Heater active", 250, 70);
     }
 #else
@@ -789,8 +805,8 @@ void drawScreen(bool value_only = false) {
 #ifdef ARDUINO_M5STACK_FIRE    
     drawOneValue(175, 365, humidlog->latest(), TFT_BLACK, FONT_LARGE);
     if (use_fan && fan.fan()) {
-//      M5.Lcd.setFont(&fonts::Font4);
       M5.Lcd.drawPng(fan_png,sizeof(fan_png),100,365+10);
+//      M5.Lcd.setFont(&fonts::Font4);
 //      M5.Lcd.drawString("Fan active", 250, 325);
     }
     uint32_t fs = prefs_json["fetch_start"][0];
@@ -972,6 +988,20 @@ void startWebServer() {
   if (use_relay || use_extrelay || use_tplug) {
     webServer.on("/relay", handleRelay);
   }
+
+  help_json["GET"]["/help"]= "Show this help";
+  help_json["GET"]["/status"]= "Show status";
+  help_json["GET"]["/reboot"]["?"]= "Reboot";
+  help_json["GET"]["/reboot"]["init="]= "Reboot & Initialize config to default (no parameter)";
+  help_json["GET"]["/fan"]["power="]= "Set fan power (0 for stop, max 255)";
+  help_json["GET"]["/relay"]["1={on/off}"]= "Control relay1";
+  help_json["GET"]["/relay"]["2={on/off}"]= "Control relay2";
+  help_json["GET"]["/config"] = "Show config in json format";
+  help_json["POST"]["/config"] = "Append config by json format (Overwrite if specified {\"overwrite\":true} in json)";
+  help_json["GET"]["/function"]["?"]= "Show available functions in json format";
+  help_json["GET"]["/function"]["use_XXX={true/false}"]= "Activate/deactivate function XXX";
+  help_json["POST"]["/function"] = "Append function by json format (Overwrite if specified {\"overwrite\":true} in json)";
+
   webServer.begin();
 }
 
@@ -1125,7 +1155,7 @@ void handleFunction() {
 // Config表示
 void handleConfig() {
   String message, argname, argv, body;
-  JsonDocument json, filter;
+  JsonDocument json;
 
   if (webServer.method() == HTTP_POST) {
     body = webServer.arg("plain");
@@ -1155,6 +1185,26 @@ void handleConfig() {
 
   serializeJson(prefs_json,message);
   webServer.send(200, "application/json", message);
+}
+
+/*
+                                                                                                      
+88                                          88 88            88        88            88              
+88                                          88 88            88        88            88              
+88                                          88 88            88        88            88              
+88,dPPYba,  ,adPPYYba, 8b,dPPYba,   ,adPPYb,88 88  ,adPPYba, 88aaaaaaaa88  ,adPPYba, 88 8b,dPPYba,   
+88P'    "8a ""     `Y8 88P'   `"8a a8"    `Y88 88 a8P_____88 88""""""""88 a8P_____88 88 88P'    "8a  
+88       88 ,adPPPPP88 88       88 8b       88 88 8PP""""""" 88        88 8PP""""""" 88 88       d8  
+88       88 88,    ,88 88       88 "8a,   ,d88 88 "8b,   ,aa 88        88 "8b,   ,aa 88 88b,   ,a8"  
+88       88 `"8bbdP"Y8 88       88  `"8bbdP"Y8 88  `"Ybbd8"' 88        88  `"Ybbd8"' 88 88`YbbdP"'   
+                                                                                        88           
+                                                                                        88           
+
+ */
+void handleHelp() {
+  String message = "";
+  serializeJson(help_json,message);
+  webServer.send(200, "text/plain", message);
 }
 
 /*
@@ -1203,25 +1253,6 @@ void handleFan() {
                                                                                                     d8'       
 
  */
-
-/*
-config
-{
-  "relay1":{
-    "id":"relay1",
-    "manage_by_temp":true,
-    "on_temp":30.0,
-    "off_temp":25.0
-  },
-  "relay2":{
-    "id":"relay2",
-    "manage_by_temp":true,
-    "on_temp":30.0,
-    "off_temp":25.0
-  },
-}
-
-*/
 
 // relay制御
 void handleRelay() {
@@ -1877,7 +1908,10 @@ void loop() {
               pixel_color = relay1->pixel(pixel_color);
               DRAWPIX(pixel_color);
             }
-            prefs.putUChar("relay1_status", relay1->state());
+            int r1_st = prefs.getUChar("relay1_status");
+            if (r1_st != relay1->state()) {
+              prefs.putUChar("relay1_status", relay1->state());
+            }
             if (!use_extrelay) {
               post_note(relay1->name(), relay1->state() ? "on" : "off");
             }
@@ -1889,7 +1923,10 @@ void loop() {
               pixel_color = relay1->pixel(pixel_color);
               DRAWPIX(pixel_color);
             }
-            prefs.putUChar("relay1_status", relay1->state());
+            int r1_st = prefs.getUChar("relay1_status");
+            if (r1_st != relay1->state()) {
+              prefs.putUChar("relay1_status", relay1->state());
+            }
             if (!use_extrelay) {
               post_note(relay1->name(), relay1->state() ? "on" : "off");
             }
@@ -1901,16 +1938,22 @@ void loop() {
           if (relay2->manageByTemperature(templog->latest())) {
             pixel_color = relay2->pixel(pixel_color);
             DRAWPIX(pixel_color);
-            prefs.putUChar("relay2_status", relay2->state());
+            int r2_st = prefs.getUChar("relay2_status");
+            if (r2_st != relay2->state()) {
+              prefs.putUChar("relay2_status", relay2->state());
+            }
             post_note(relay2->name(), relay2->state() ? "on" : "off");
           }
-          if (manage_time_relay2) {
-            if (relay2->manageByTime(rtc.now())) {
-              pixel_color = relay2->pixel(pixel_color);
-              DRAWPIX(pixel_color);
+        }
+        if (manage_time_relay2) {
+          if (relay2->manageByTime(rtc.now())) {
+            pixel_color = relay2->pixel(pixel_color);
+            DRAWPIX(pixel_color);
+            int r2_st = prefs.getUChar("relay2_status");
+            if (r2_st != relay2->state()) {
               prefs.putUChar("relay2_status", relay2->state());
-              post_note(relay2->name(), relay2->state() ? "on" : "off");
             }
+            post_note(relay2->name(), relay2->state() ? "on" : "off");
           }
         }
       }
