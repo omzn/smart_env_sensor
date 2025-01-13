@@ -979,6 +979,7 @@ void startWebServer() {
   webServer.on("/", handleRoot);
   webServer.on("/pure.css", handleCss);
   webServer.on("/reboot", handleReboot);
+  webServer.on("/help", handleHelp);
   webServer.on("/status", handleStatus);
   webServer.on("/config", handleConfig);
   webServer.on("/function", handleFunction);
@@ -1257,6 +1258,7 @@ void handleFan() {
 // relay制御
 void handleRelay() {
   String message, argname, argv;
+  JsonDocument json;
   if (!use_relay && !use_extrelay && !use_tplug) return;
   for (int i = 0; i < webServer.args(); i++) {
     argname = webServer.argName(i);
@@ -1267,53 +1269,63 @@ void handleRelay() {
     DPRINTLN(argv);
     if (argname == "1") {
       if (argv == "on") {
-        relay1->on();
+        bool ret = relay1->on();
         if (use_relay) {
           pixel_color = relay1->pixel(pixel_color);
           DRAWPIX(pixel_color);
         }
         prefs.putUChar("relay1_status", relay1->state());
-        if (!use_extrelay) {
+        if (!use_extrelay && ret) {
           post_note(relay1->name(), "on");
         }
+        json["relay1"]["changed"] = ret;
       } else if (argv == "off") {
-        relay1->off();
+        bool ret = relay1->off();
         if (use_relay) {
           pixel_color = relay1->pixel(pixel_color);
           DRAWPIX(pixel_color);
         }
         prefs.putUChar("relay1_status", relay1->state());
-        if (!use_extrelay) {
+        if (!use_extrelay && ret) {
           post_note(relay1->name(), "off");
         }
-      }
+        json["relay1"]["changed"] = ret;
+      }      
+      json["relay1"]["name"] = relay1->name();
+      json["relay1"]["state"] = relay1->state() ? "on" : "off";
     } else if (argname == "2") {
       if (use_relay) {
         if (argv == "on") {
-          relay2->on();
+          bool ret = relay2->on();
           if (use_relay) {
             pixel_color = relay2->pixel(pixel_color);
             DRAWPIX(pixel_color);
           }
           prefs.putUChar("relay2_status", relay2->state());
-          if (!use_extrelay) {
+          if (!use_extrelay && ret) {
             post_note(relay2->name(), "on");
           }
+          json["relay2"]["changed"] = ret;
         } else if (argv == "off") {
-          relay2->off();
+          bool ret = relay2->off();
           if (use_relay) {
             pixel_color = relay2->pixel(pixel_color);
             DRAWPIX(pixel_color);
           }
           prefs.putUChar("relay2_status", relay2->state());
-          if (!use_extrelay) {
+          if (!use_extrelay && ret) {
             post_note(relay2->name(), "off");
           }
+          json["relay2"]["changed"] = ret;
         }
+        json["relay2"]["name"] = relay2->name();
+        json["relay2"]["state"] = relay2->state() ? "on" : "off";
       }
     }
   }
-  handleStatus();
+  json["timestamp"] = timestamp();
+  serializeJsonPretty(json,message);
+  webServer.send(200, "application/json", message);
 }
 
 /*******************************************
