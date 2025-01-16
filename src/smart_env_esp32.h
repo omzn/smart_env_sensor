@@ -106,6 +106,7 @@ void handleCss();
 void handleReboot();
 void handleFan();
 void handleRelay();
+void handleDoorStatus();
 void sendFs(String path, String contentType);
 String makePage(String title, String contents);
 String urlDecode(String input);

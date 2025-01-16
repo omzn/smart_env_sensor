@@ -41,10 +41,12 @@ int Relay::_request(bool state) {
   http.end();
   deserializeJson(json, body);
   if (!json["relay1"].isNull()) {
+    _state = json["relay1"]["state"].as<String>() == "on" ? true : false;
     if (json["relay1"]["changed"].as<bool>()) 
       return 1;
     return 0;
   } else if (!json["relay2"].isNull()) {
+    _state = json["relay2"]["state"].as<String>() == "on" ? true : false;
     if (json["relay2"]["changed"].as<bool>()) 
       return 1;
     return 0;
@@ -52,6 +54,27 @@ int Relay::_request(bool state) {
     return 0;
   }
 }
+
+// リモートのリレーの状態(state)を取得
+bool Relay::_request_state() {
+  HTTPClient http;
+  String body;
+  JsonDocument json;
+
+  String apiurl = _api ;
+  http.begin(apiurl);
+  int httpCode = http.GET();
+  body = http.getString();
+  http.end();
+  deserializeJson(json, body);
+  if (!json["relay1"].isNull()) {
+    return json["relay1"]["state"].as<String>() == "on" ? true : false; 
+  } else if (!json["relay2"].isNull()) {
+    return json["relay2"]["state"].as<String>() == "on" ? true : false; 
+  }
+  return false;
+}
+
 
 // 返値は，変更があった場合にtrue
 // TPLinkSmartPlugを使っている場合は，TPLinkSmartPlugにリクエストを送信し，
@@ -75,7 +98,16 @@ bool Relay::relay(bool state) {
 bool Relay::on() { return relay(true); }
 bool Relay::off() { return relay(false); }
 
-bool Relay::state() { return _state; }
+bool Relay::state() { 
+  JsonDocument json;
+  if (_api != "") {
+    _state = _request_state();
+  } else if (_tplug != NULL) {
+    deserializeJson(json, _tplug->getSysInfo());
+    _state = json["relay_state"].as<bool>();
+  }  
+  return _state;   
+}
 
 uint32_t Relay::pixel(uint32_t p) {
   if (_state) {
@@ -100,13 +132,11 @@ int Relay::manageByTemperature(float t) {
   if (t <= _on_temp) {
       ret = on();
       DPRINTLN("relay on");
-      return 1;
   } else if (t >= _off_temp) {
       ret = off();
       DPRINTLN("relay off");
-      return 1;
   }
-  return 0;
+  return ret;
 }
 
 void Relay::onTime(String t) { _on_time = t; }
@@ -115,7 +145,7 @@ void Relay::offTime(String t) { _off_time = t; }
 
 int Relay::manageByTime(DateTime now) {
   int idx, prev_idx = 0;
-
+  bool ret = false;
   if (_on_time != "") {
     do {
       idx = _on_time.indexOf(",", prev_idx);
@@ -132,9 +162,9 @@ int Relay::manageByTime(DateTime now) {
         if (now.hour() * 60 + now.minute() == hourmin &&
             _last_on != hourmin) {
           _last_on = hourmin;
-          if (!_state) {
-            on();
-            return 1;
+          if (!state()) {
+            ret = on();
+            return ret;
           }
         }
       }
@@ -158,14 +188,14 @@ int Relay::manageByTime(DateTime now) {
         if (now.hour() * 60 + now.minute() == hourmin &&
             _last_off != hourmin) {
           _last_off = hourmin;
-          if (_state) {
-            off();
-            return 1;
+          if (state()) {
+            ret = off();
+            return ret;
           }
         }
       }
       prev_idx = idx + 1;
     } while (idx < _off_time.length());
   }
-  return 0;
+  return ret;
 }

@@ -56,7 +56,7 @@ Supported sensors / relays
   #define DRAWPIX(pixelcolor)    M5.dis.drawpix(0,pixel_color)
   #define DRAWSCREEN(...)        
 #elif defined(ARDUINO_M5Stack_ATOMS3)
-  #define DRAWPIX(pixelcolor)    M5.dis.drawpix(pixel_color)
+  #define DRAWPIX(pixelcolor)    
   #if HAS_DISPLAY
     #define DRAWSCREEN(...)        drawScreen(__VA_ARGS__)
     #include "DSEG7Classic-BoldItalic12pt7b.h"
@@ -116,7 +116,7 @@ Supported sensors / relays
 #include <Adafruit_SGP30.h>
 #endif
 
-#define DEFAULT_CONFIG F("{\"hostname\":\"mysensor\",\"enable_push\":false,\"url_endpoint\":\"http://myserver:3000\",\"fan\":{\"id\":\"fan\",\"manage_by_humid\":false,\"target_humid\":50},\"relay1\":{\"id\":\"relay1\",\"manage_by_temp\":false,\"on_temp\":25,\"off_temp\":30,\"manage_by_time\":false,\"on_time\":\"10:00,12:00\",\"off_time\":\"11:00,18:00\"},\"relay2\":{\"id\":\"relay2\",\"manage_by_temp\":false,\"on_temp\":25,\"off_temp\":30,\"manage_by_time\":false,\"on_time\":\"10:00,11:00\",\"off_time\":\"10:10,11:10\"},\"url_extrelay\":\"http://myextrelay:3000\",\"host_tplug\":\"\",\"temp\":{\"id\":\"mytemp1\"},\"humidity\":{\"id\":\"myhumid1\"},\"pressure\":{\"id\":\"mypressure\"},\"door\":{\"id\":\"mydoor\"},\"co2\":{\"id\":\"myco2\"},\"tvoc\":{\"id\":\"mytvoc\"}}")
+#define DEFAULT_CONFIG F("{\"hostname\":\"mysensor\",\"enable_push\":false,\"url_endpoint\":\"http://myserver:3000\",\"fan\":{\"id\":\"fan\",\"manage_by_humid\":false,\"target_humid\":50},\"relay1\":{\"id\":\"relay1\",\"manage_by_temp\":false,\"on_temp\":25,\"off_temp\":30,\"manage_by_time\":false,\"on_time\":\"10:00,12:00\",\"off_time\":\"11:00,18:00\"},\"relay2\":{\"id\":\"relay2\",\"manage_by_temp\":false,\"on_temp\":25,\"off_temp\":30,\"manage_by_time\":false,\"on_time\":\"10:00,11:00\",\"off_time\":\"10:10,11:10\"},\"url_extrelay\":\"http://myextrelay:3000\",\"host_tplug\":\"\",\"temp\":{\"id\":\"mytemp1\"},\"humidity\":{\"id\":\"myhumid1\"},\"pressure\":{\"id\":\"mypressure\"},\"door\":{\"id\":\"mydoor\",\"reverse\":true},\"co2\":{\"id\":\"myco2\"},\"tvoc\":{\"id\":\"mytvoc\"}}")
 #define DEFAULT_FUNCTION F("{\"use_thermo\":false,\"use_humidity\":false,\"use_pressure\":false,\"use_doorsensor\":false,\"use_co2\":false,\"use_tvoc\":false,\"use_fan\":false,\"use_relay\":false,\"use_extrelay\":false,\"use_tplug\":false,\"use_lcd\":false}")
 
 #include "debugmacros.h"
@@ -515,6 +515,9 @@ a8"    `Y88 a8P_____88   88    88         88 a8"     "8a a8"     "8a 88P'   "Y8
 void getDoor() {
   if (use_doorsensor) {
     door = digitalRead(DOORSENSOR_PIN);
+    if (prefs_json["door"]["reverse"].as<bool>()) {
+      door = 1 - door;
+    }
     DPRINT("door:");
     DPRINTLN(door);
     if (door == DOOR_OPEN) {
@@ -825,7 +828,7 @@ void drawScreen(bool value_only = false) {
     drawOneValue(9, 84, humidlog->latest(), use_fan ? (fan.fan() ? TFT_BLUE : TFT_CYAN) : TFT_CYAN, FONT_SMALL);
 #endif
   }
-#ifdef ARDUINO_M5STACK_FIRE    
+#ifdef ARDUINO_M5STACK_FIRE  
     M5.Lcd.endWrite();
 #endif
 }
@@ -981,6 +984,9 @@ void startWebServer() {
   webServer.on("/reboot", handleReboot);
   webServer.on("/help", handleHelp);
   webServer.on("/status", handleStatus);
+  if (use_doorsensor) {
+    webServer.on("/doorstatus", handleDoorStatus);
+  }
   webServer.on("/config", handleConfig);
   webServer.on("/function", handleFunction);
   if (use_fan) {
@@ -1068,6 +1074,21 @@ void handleStatus() {
   if (use_tplug || use_extrelay) {
     json["relay1"]["name"] = relay1->name();
     json["relay1"]["state"] = relay1->state() ? "on" : "off";
+  }
+  json["timestamp"] = timestamp();
+  serializeJsonPretty(json,message);
+  webServer.send(200, "application/json", message);
+}
+
+void handleDoorStatus() {
+  String message = "", argname, argv, body;
+  JsonDocument json;
+
+  if (use_doorsensor) {
+    json["door_sensor"] = door;
+    json["door_count"] = door_count;
+    json["state"] = door ? "locked" : "unlocked";
+    json["battery"] = 100;
   }
   json["timestamp"] = timestamp();
   serializeJsonPretty(json,message);
@@ -1518,6 +1539,7 @@ void handleReboot() {
     delay(0);
   }
 }
+
 void sendFs(String path, String contentType) {
   if (SPIFFS.exists(path)) {
     File file = SPIFFS.open(path, "r");
@@ -1639,7 +1661,6 @@ void setup() {
   M5.begin(true,true,true);
 #elif defined(ARDUINO_M5Stack_ATOMS3)
   M5.begin(true,true,true,true);
-//  M5.IMU.begin();
 #elif defined(ARDUINO_M5STACK_FIRE)
   M5.begin();
   M5.Lcd.setRotation(1);
@@ -1863,7 +1884,7 @@ void loop() {
 
   M5.update();
 
-#if defined(ARDUINO_M5STACK_FIRE)
+#if defined(ARDUINO_M5STACK_FIRE) 
   if (M5.BtnA.wasReleased()) {
 #else
   if (M5.Btn.wasReleased()) {

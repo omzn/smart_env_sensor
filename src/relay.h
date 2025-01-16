@@ -39,6 +39,7 @@ class Relay
         int _last_on = 0;
         int _last_off = 0;
         int _request(bool state);
+        bool _request_state();
         TPLinkSmartPlug *_tplug = NULL;
 };
 
