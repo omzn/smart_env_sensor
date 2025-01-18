@@ -27,7 +27,9 @@ Relay::Relay(TPLinkSmartPlug *tp) {
 
 void Relay::name(String n) { _name = n; }
 
-String Relay::name() { return _name; }
+String Relay::name() { 
+  return _name + (_api != "" ? " (external)" : (_tplug != NULL ? " (tplug)" : "")); 
+}
 
 int Relay::_request(bool state) {
   HTTPClient http;
@@ -42,11 +44,13 @@ int Relay::_request(bool state) {
   deserializeJson(json, body);
   if (!json["relay1"].isNull()) {
     _state = json["relay1"]["state"].as<String>() == "on" ? true : false;
+    _name = json["relay1"]["name"].as<String>();
     if (json["relay1"]["changed"].as<bool>()) 
       return 1;
     return 0;
   } else if (!json["relay2"].isNull()) {
     _state = json["relay2"]["state"].as<String>() == "on" ? true : false;
+    _name = json["relay2"]["name"].as<String>();
     if (json["relay2"]["changed"].as<bool>()) 
       return 1;
     return 0;
@@ -68,8 +72,10 @@ bool Relay::_request_state() {
   http.end();
   deserializeJson(json, body);
   if (!json["relay1"].isNull()) {
+    _name = json["relay1"]["name"].as<String>();
     return json["relay1"]["state"].as<String>() == "on" ? true : false; 
   } else if (!json["relay2"].isNull()) {
+    _name = json["relay2"]["name"].as<String>();
     return json["relay2"]["state"].as<String>() == "on" ? true : false; 
   }
   return false;

@@ -248,6 +248,20 @@ uint32_t timestamp_epoch() {
   return now.unixtime();
 }
 
+/*
+                                                           
+                                     ad88 88              
+                                    d8"   ""              
+                                    88                    
+ ,adPPYba,  ,adPPYba,  8b,dPPYba, MM88MMM 88  ,adPPYb,d8  
+a8"     "" a8"     "8a 88P'   `"8a  88    88 a8"    `Y88  
+8b         8b       d8 88       88  88    88 8b       88  
+"8a,   ,aa "8a,   ,a8" 88       88  88    88 "8a,   ,d88  
+ `"Ybbd8"'  `"YbbdP"'  88       88  88    88  `"YbbdP"Y8  
+                                              aa,    ,88  
+                                               "Y8bbdP"   
+
+ */
 void config() {
   if (use_fan) {
     manage_fan = prefs_json["fan"]["manage_by_humid"];
@@ -268,10 +282,10 @@ void config() {
     pinMode(RELAY2_PIN, OUTPUT);
     relay1->name(prefs_json["relay1"]["id"].as<String>());
     relay2->name(prefs_json["relay2"]["id"].as<String>());
-    relay1->relay((bool)prefs.getUChar("relay1_state", 0));
+    relay1->relay((bool)prefs.getUChar("relay1_status", 0));
     pixel_color = relay1->pixel(pixel_color);
     DRAWPIX(pixel_color);
-    relay2->relay((bool)prefs.getUChar("relay2_state", 0));
+    relay2->relay((bool)prefs.getUChar("relay2_status", 0));
     pixel_color = relay2->pixel(pixel_color);
     DRAWPIX(pixel_color);
     relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
@@ -293,8 +307,9 @@ void config() {
       delete relay1;
     }
     relay1 = new Relay(prefs_json["url_extrelay"].as<String>());
-    relay1->name(prefs_json["relay1"]["id"].as<String>());
-    relay1->relay(prefs.getUChar("relay1_state", 0));
+    relay1->state();
+    //relay1->name(prefs_json["relay1"]["id"].as<String>());
+    relay1->relay(prefs.getUChar("relay1_status", 0));
     relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
     relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
     manage_temp_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
@@ -315,7 +330,7 @@ void config() {
     }
     relay1 = new Relay(tplug);
     relay1->name(prefs_json["relay1"]["id"].as<String>());
-    relay1->relay(prefs.getUChar("relay1_state", 0));
+    relay1->relay(prefs.getUChar("relay1_status", 0));
     relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
     relay1->offTemp(prefs_json["relay1"]["off_temp"].as<float>());
     manage_temp_relay1 = prefs_json["relay1"]["manage_by_temp"].as<bool>();
