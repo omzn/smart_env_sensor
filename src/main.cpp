@@ -329,6 +329,7 @@ void config() {
       delete relay1;
     }
     relay1 = new Relay(tplug);
+    relay1->state();
     relay1->name(prefs_json["relay1"]["id"].as<String>());
     relay1->relay(prefs.getUChar("relay1_status", 0));
     relay1->onTemp(prefs_json["relay1"]["on_temp"].as<float>());
@@ -1001,28 +1002,31 @@ void startWebServer() {
   webServer.on("/status", handleStatus);
   if (use_doorsensor) {
     webServer.on("/doorstatus", handleDoorStatus);
+    help_json["GET"]["/doorstatus"]= "Show door status only";
   }
   webServer.on("/config", handleConfig);
   webServer.on("/function", handleFunction);
   if (use_fan) {
     webServer.on("/fan", handleFan);
+    help_json["GET"]["/fan"]["power="]= "Set fan power (0 for stop, max 255)";
   }
   if (use_relay || use_extrelay || use_tplug) {
     webServer.on("/relay", handleRelay);
+    help_json["GET"]["/relay"]["1={on/off}"]= "Control relay1";
+    if (use_relay) {
+        help_json["GET"]["/relay"]["2={on/off}"]= "Control relay2";
+    }
   }
 
-  help_json["GET"]["/help"]= "Show this help";
   help_json["GET"]["/status"]= "Show status";
   help_json["GET"]["/reboot"]["?"]= "Reboot";
   help_json["GET"]["/reboot"]["init="]= "Reboot & Initialize config to default (no parameter)";
-  help_json["GET"]["/fan"]["power="]= "Set fan power (0 for stop, max 255)";
-  help_json["GET"]["/relay"]["1={on/off}"]= "Control relay1";
-  help_json["GET"]["/relay"]["2={on/off}"]= "Control relay2";
   help_json["GET"]["/config"] = "Show config in json format";
   help_json["POST"]["/config"] = "Append config by json format (Overwrite if specified {\"overwrite\":true} in json)";
   help_json["GET"]["/function"]["?"]= "Show available functions in json format";
   help_json["GET"]["/function"]["use_XXX={true/false}"]= "Activate/deactivate function XXX";
   help_json["POST"]["/function"] = "Append function by json format (Overwrite if specified {\"overwrite\":true} in json)";
+  help_json["GET"]["/help"]= "Show this help";
 
   webServer.begin();
 }
@@ -1153,6 +1157,12 @@ void handleFunction() {
     }
   }
   if (!json.isNull()) {
+    if (json["use_extrelay"].as<bool>()) {
+      json["use_relay"] = false;
+      json["use_tplug"] = false;
+    } else if (json["use_tplug"].as<bool>()) {
+        json["use_relay"] = false;
+    }
     if (json["overwrite"].as<bool>()) {
       json.remove("overwrite");
       func_json = json;
