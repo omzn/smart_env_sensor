@@ -21,6 +21,8 @@ Supported sensors / relays
 #include <M5AtomS3.h>
 #elif defined(ARDUINO_M5STACK_FIRE)
 #include <M5Unified.h>
+#elif defined(ARDUINO_M5Stack_CoreInk)
+#include <M5Unified.h>
 #endif
 
 //#define HAS_DISPLAY 1   // HAS_DISPLAY は platformio.ini で設定する．
@@ -46,6 +48,8 @@ Supported sensors / relays
 
 #if defined(ARDUINO_M5STACK_FIRE)
 #include "board960.h"
+#elif defined(ARDUINO_M5Stack_CoreInk)
+#include "board200.h"
 #else
 #include "board.h"
 #endif
@@ -91,6 +95,26 @@ Supported sensors / relays
     #define FONT_7SEG_MEDIUM M5.Lcd.setFont(&DSEG7Classic_BoldItalic16pt7b)
     #define FONT_7SEG_SMALL M5.Lcd.setFont(&DSEG7Classic_BoldItalic14pt7b)
     #define FONT_7SEG_TINY M5.Lcd.setFont(&DSEG7Classic_BoldItalic12pt7b)
+  #else
+    #define DRAWSCREEN(...)
+    // Include the header files that contain the icons
+  #endif    
+#elif defined(ARDUINO_M5Stack_CoreInk)
+  #define DRAWPIX(pixelcolor)    
+  #if HAS_DISPLAY
+    #define DRAWSCREEN(...)        drawScreen(__VA_ARGS__)
+    #include "DSEG7Classic-BoldItalic9pt7b.h"
+    #include "DSEG7Classic-BoldItalic12pt7b.h"
+    #include "DSEG7Classic-BoldItalic14pt7b.h"
+    #include "DSEG7Classic-BoldItalic16pt7b.h"
+    #include "DSEG7Classic-BoldItalic24pt7b.h"
+    #include "DSEG7Classic-BoldItalic32pt7b.h"
+    #define FONT_7SEG_LARGE M5.Lcd.setFont(&DSEG7Classic_BoldItalic32pt7b)
+    #define FONT_7SEG_BIG M5.Lcd.setFont(&DSEG7Classic_BoldItalic24pt7b)
+    #define FONT_7SEG M5.Lcd.setFont(&DSEG7Classic_BoldItalic16pt7b)
+    #define FONT_7SEG_MEDIUM M5.Lcd.setFont(&DSEG7Classic_BoldItalic14pt7b)
+    #define FONT_7SEG_SMALL M5.Lcd.setFont(&DSEG7Classic_BoldItalic12pt7b)
+    #define FONT_7SEG_TINY M5.Lcd.setFont(&DSEG7Classic_BoldItalic9pt7b)
   #else
     #define DRAWSCREEN(...)
     // Include the header files that contain the icons
@@ -599,7 +623,7 @@ int getStatus(float *t, float *h, String url) {
   return 0;
 }
 
-#if (defined(ARDUINO_M5Stack_ATOMS3) || defined(ARDUINO_M5STACK_FIRE)) && HAS_DISPLAY
+#if (defined(ARDUINO_M5Stack_ATOMS3) || defined(ARDUINO_M5STACK_FIRE)|| defined(ARDUINO_M5Stack_CoreInk)) && HAS_DISPLAY
 /*
                                                                                                                       
    ad88                                                                                88 88             88          
@@ -800,6 +824,11 @@ void drawScreen(bool value_only = false) {
     M5.Lcd.drawPng(th128,sizeof(th128),0,0);
     M5.Lcd.setFont(&fonts::Font2);
     M5.Lcd.setCursor(440, 540-20);
+#elif defined(ARDUINO_M5Stack_CoreInk)    
+    M5.Lcd.startWrite();
+    M5.Lcd.drawPng(board200_png,sizeof(board200_png),0,0);
+    M5.Lcd.setFont(&fonts::Font2);
+    M5.Lcd.setCursor(60, 200-20);
 #else
     M5.Lcd.pushImage(0, 0, th128Width, th128Height, th128);
     M5.Lcd.setTextFont(0);
@@ -814,6 +843,13 @@ void drawScreen(bool value_only = false) {
     drawOneValue(175, 110, templog->latest(), TFT_BLACK, FONT_LARGE);
     if ((use_relay || use_extrelay || use_tplug) && (relay1->state())) {
       M5.Lcd.drawPng(heater_png,sizeof(heater_png),100,110+10);
+//      M5.Lcd.setFont(&fonts::Font4);
+//      M5.Lcd.drawString("Heater active", 250, 70);
+    }
+#elif defined(ARDUINO_M5Stack_CoreInk)    
+    drawOneValue(9, 44, templog->latest(), TFT_BLACK, FONT_MEDIUM);
+    if ((use_relay || use_extrelay || use_tplug) && (relay1->state())) {
+//      M5.Lcd.drawPng(heater_png,sizeof(heater_png),100,110+10);
 //      M5.Lcd.setFont(&fonts::Font4);
 //      M5.Lcd.drawString("Heater active", 250, 70);
     }
@@ -840,11 +876,30 @@ void drawScreen(bool value_only = false) {
               fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
       drawOneValue(620, 365, elapsed_days2, TFT_BLACK, FONT_LARGE);
     }
+#elif defined(ARDUINO_M5Stack_CoreInk)    
+    drawOneValue(9, 140, humidlog->latest(), TFT_BLACK, FONT_MEDIUM);
+    if (use_fan && fan.fan()) {
+//      M5.Lcd.drawPng(fan_png,sizeof(fan_png),100,365+10);
+//      M5.Lcd.setFont(&fonts::Font4);
+//      M5.Lcd.drawString("Fan active", 250, 325);
+    }
+    uint32_t fs = prefs_json["fetch_start"][0];
+    if (fs > 0) {
+      float elapsed_days1 =
+              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+      drawOneValue(126, 44, elapsed_days1, TFT_BLACK, FONT_MEDIUM);
+    }
+    fs = prefs_json["fetch_start"][1].as<int>();
+    if (fs > 0) {
+      float elapsed_days2 =
+              fs > 0 ? float(timestamp_epoch() - fs) / (float)SECONDS_PER_DAY : 0;
+      drawOneValue(126, 84, elapsed_days2, TFT_BLACK, FONT_MEDIUM);
+    }
 #else
     drawOneValue(9, 84, humidlog->latest(), use_fan ? (fan.fan() ? TFT_BLUE : TFT_CYAN) : TFT_CYAN, FONT_SMALL);
 #endif
   }
-#ifdef ARDUINO_M5STACK_FIRE  
+#if defined(ARDUINO_M5STACK_FIRE ) || defined(ARDUINO_M5Stack_CoreInk)  
     M5.Lcd.endWrite();
 #endif
 }
@@ -1076,10 +1131,10 @@ void handleStatus() {
     }
   }
   if (use_doorsensor) {
-    json["door_sensor"] = door;
-    json["door_count"] = door_count;
-    json["state"] = door ? "locked" : "unlocked";
-    json["battery"] = 100;
+    json["door"]["sensor"] = door;
+    json["door"]["count"] = door_count;
+    json["door"]["state"] = door ? "locked" : "unlocked";
+    json["door"]["battery"] = 100;
   }
   if (use_fan) {
     json["fan"] = fan.fan();
@@ -1099,6 +1154,20 @@ void handleStatus() {
   webServer.send(200, "application/json", message);
 }
 
+/*
+                                                                                                                                                                           
+88                                          88 88            88888888ba,                                       ad88888ba                                                  
+88                                          88 88            88      `"8b                                     d8"     "8b ,d                 ,d                           
+88                                          88 88            88        `8b                                    Y8,         88                 88                           
+88,dPPYba,  ,adPPYYba, 8b,dPPYba,   ,adPPYb,88 88  ,adPPYba, 88         88  ,adPPYba,   ,adPPYba,  8b,dPPYba, `Y8aaaaa, MM88MMM ,adPPYYba, MM88MMM 88       88 ,adPPYba,  
+88P'    "8a ""     `Y8 88P'   `"8a a8"    `Y88 88 a8P_____88 88         88 a8"     "8a a8"     "8a 88P'   "Y8   `"""""8b, 88    ""     `Y8   88    88       88 I8[    ""  
+88       88 ,adPPPPP88 88       88 8b       88 88 8PP""""""" 88         8P 8b       d8 8b       d8 88                 `8b 88    ,adPPPPP88   88    88       88  `"Y8ba,   
+88       88 88,    ,88 88       88 "8a,   ,d88 88 "8b,   ,aa 88      .a8P  "8a,   ,a8" "8a,   ,a8" 88         Y8a     a8P 88,   88,    ,88   88,   "8a,   ,a88 aa    ]8I  
+88       88 `"8bbdP"Y8 88       88  `"8bbdP"Y8 88  `"Ybbd8"' 88888888Y"'    `"YbbdP"'   `"YbbdP"'  88          "Y88888P"  "Y888 `"8bbdP"Y8   "Y888  `"YbbdP'Y8 `"YbbdP"'  
+                                                                                                                                                                          
+                                                                                                                                                                          
+
+ */
 void handleDoorStatus() {
   String message = "", argname, argv, body;
   JsonDocument json;
@@ -1829,7 +1898,7 @@ void setup() {
     //    M5.dis.drawpix(0, 0x7f0000);
 #ifdef USE_MHZ19
     mySerial.begin(MHZ19_BAUDRATE, SERIAL_8N1, MHZ19_PIN_RX, MHZ19_PIN_TX);
-    mhz19.begin(mySerial);
+    //mhz19.begin(mySerial);
     mhz19.setAutoCalibration(false);
 #endif
 #ifdef USE_SCD4X
@@ -1909,7 +1978,7 @@ void loop() {
 
   M5.update();
 
-#if defined(ARDUINO_M5STACK_FIRE) 
+#if defined(ARDUINO_M5STACK_FIRE) || defined(ARDUINO_M5Stack_CoreInk)
   if (M5.BtnA.wasReleased()) {
 #else
   if (M5.Btn.wasReleased()) {
@@ -1920,10 +1989,12 @@ void loop() {
     //      delay(1000);
     //    }
     //    M5.dis.drawpix(0, 0x7f0000);
-#if defined(ARDUINO_M5Stack_ATOMS3)
+#if defined(ARDUINO_M5Stack_ATOMS3) || defined(ARDUINO_M5Stack_CoreInk)
   #if HAS_DISPLAY 
+
     lcd_rotation++;
     lcd_rotation %= 4;
+    DPRINTLN(lcd_rotation);
     M5.Lcd.setRotation(lcd_rotation);
     DRAWSCREEN();
     prefs.putUChar("lcd_rotate",lcd_rotation);
@@ -2033,7 +2104,7 @@ void loop() {
       getPressure();
     }
 
-#ifdef ARDUINO_M5STACK_FIRE
+#if defined(ARDUINO_M5STACK_FIRE) || defined(ARDUINO_M5Stack_CoreInk)
     if (timer_count % 60 == 0) {  // 60秒おき
       DRAWSCREEN();
     }

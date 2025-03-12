@@ -5,7 +5,7 @@
 #define USE_GROVE_ENV3
 //#define USE_HAT_ENV3
 //#define USE_SCD4X
-//#define USE_MHZ19
+#define USE_MHZ19
 //#define USE_DS18B20
 //#define USE_SGP30
 
@@ -82,6 +82,34 @@
   #define FAN_PIN       (26) //PORT.B
 
   #define DOORSENSOR_PIN     (33) // PORT.B
+
+  #define RELAY1_PIN  (-1)
+  #define RELAY2_PIN  (-1)
+
+  #define MHZ19_PIN_RX   (-1) // Rx pin which the MHZ19 Tx pin is attached to
+  #define MHZ19_PIN_TX   (-1)  // Tx pin which the MHZ19 Rx pin is attached to
+  #define MHZ19_BAUDRATE 9600
+#elif defined(ARDUINO_M5Stack_CoreInk)
+  /*
+     GROVE.A G, 5V, 32:SDA, 33:SCL
+  */
+  #define PIN_ONEWIRE   (38)
+  // 下はM5StickC用のENV III HATを無理矢理転用した場合．
+  // Wire.begin()の前にWire.end()してから設定すると良いらしい(？)
+  #if defined(USE_HAT_ENV3)
+    #define PIN_SDA          (25) 
+    #define PIN_SCL          (26) 
+  #else
+    #define PIN_SDA          (32)
+    #define PIN_SCL          (33)
+  #endif
+
+  // HATポート
+  #define FAN_PIN       (36)
+
+  // M5SwitchD では，2つ目のGROVEポート(39)につなげる
+  // M5ATOM本体のGROVEの場合は，1にする．
+  #define DOORSENSOR_PIN     (22)
 
   #define RELAY1_PIN  (-1)
   #define RELAY2_PIN  (-1)

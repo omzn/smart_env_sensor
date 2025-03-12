@@ -2,7 +2,6 @@
   This is a class library for Fan
 */
 #include "fan.h"
-#include "debugmacros.h"
 
 // construct a Fan.
 //  pin : GPIO pin
@@ -65,7 +64,6 @@ int Fan::manageByHumid(float h) {
   d = kd * (diff_c - diff_p) / dt;  // 1% で pwm 10
   float power = p + i + d;
   int ipower = constrain((int)power, 0, 255);
-  DPRINTF("humid: %.1f, target: %.1f, power: %.1f (%3d)\n", h, _target_humid, power, ipower);
   fan(ipower);
   return (ipower && !prev_power || !ipower && prev_power);
 }

@@ -2,7 +2,6 @@
   This is a class library for M5Switch D (M5 ATOM Lite base)
 */
 #include "relay.h"
-#include "debugmacros.h"
 
 #include <HTTPClient.h>
 
@@ -137,10 +136,8 @@ int Relay::manageByTemperature(float t) {
                 _state, t, _on_temp, _off_temp);
   if (t <= _on_temp) {
       ret = on();
-      DPRINTLN("relay on");
   } else if (t >= _off_temp) {
       ret = off();
-      DPRINTLN("relay off");
   }
   return ret;
 }
